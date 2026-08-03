@@ -9,7 +9,7 @@ import (
 func main() {
 	addr := ":" + envOr("PORT", "8080")
 	log.Printf("task-api listening on %s", addr)
-	if err := http.ListenAndServe(addr, http.NewServeMux()); err != nil {
+	if err := http.ListenAndServe(addr, newRouter(NewStore())); err != nil {
 		log.Fatal(err)
 	}
 }

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -57,4 +59,51 @@ func (s *Store) Create(t Task) Task {
 	s.nextID++
 	s.tasks[t.ID] = t
 	return t
+}
+
+// newRouter wires the endpoints. Plain ServeMux keeps the module dependency-free and
+// buildable on Go 1.18 (method-aware patterns would need 1.22+).
+func newRouter(s *Store) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/tasks", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			writeJSON(w, http.StatusOK, s.List())
+		case http.MethodPost:
+			t, ok := decodeTask(w, r)
+			if !ok {
+				return
+			}
+			writeJSON(w, http.StatusCreated, s.Create(t))
+		default:
+			writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		}
+	})
+	return mux
+}
+
+// decodeTask reads and validates the request body, writing the 400 itself when invalid.
+func decodeTask(w http.ResponseWriter, r *http.Request) (Task, bool) {
+	var t Task
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&t); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return Task{}, false
+	}
+	if err := t.validate(); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return Task{}, false
+	}
+	return t, true
+}
+
+func writeJSON(w http.ResponseWriter, code int, body interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(body)
+}
+
+func writeErr(w http.ResponseWriter, code int, msg string) {
+	writeJSON(w, code, map[string]string{"error": msg})
 }
