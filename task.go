@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -61,6 +62,29 @@ func (s *Store) Create(t Task) Task {
 	return t
 }
 
+func (s *Store) Update(id int, t Task) (Task, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.tasks[id]; !ok {
+		return Task{}, false
+	}
+	t.ID = id
+	s.tasks[id] = t
+	return t, true
+}
+
+func (s *Store) Delete(id int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.tasks[id]; !ok {
+		return false
+	}
+	delete(s.tasks, id)
+	return true
+}
+
 // newRouter wires the endpoints. Plain ServeMux keeps the module dependency-free and
 // buildable on Go 1.18 (method-aware patterns would need 1.22+).
 func newRouter(s *Store) *http.ServeMux {
@@ -75,6 +99,34 @@ func newRouter(s *Store) *http.ServeMux {
 				return
 			}
 			writeJSON(w, http.StatusCreated, s.Create(t))
+		default:
+			writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
+		}
+	})
+	mux.HandleFunc("/tasks/", func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.Atoi(strings.TrimPrefix(r.URL.Path, "/tasks/"))
+		if err != nil || id < 1 {
+			writeErr(w, http.StatusNotFound, "task not found")
+			return
+		}
+		switch r.Method {
+		case http.MethodPut:
+			t, ok := decodeTask(w, r)
+			if !ok {
+				return
+			}
+			updated, found := s.Update(id, t)
+			if !found {
+				writeErr(w, http.StatusNotFound, "task not found")
+				return
+			}
+			writeJSON(w, http.StatusOK, updated)
+		case http.MethodDelete:
+			if !s.Delete(id) {
+				writeErr(w, http.StatusNotFound, "task not found")
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
 		default:
 			writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
