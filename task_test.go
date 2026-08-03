@@ -119,3 +119,21 @@ func TestRequestErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestStoreIsConcurrencySafe(t *testing.T) {
+	s := NewStore()
+	done := make(chan struct{})
+	for i := 0; i < 50; i++ {
+		go func() {
+			defer func() { done <- struct{}{} }()
+			s.Create(Task{Name: "x", Status: 1})
+			s.List()
+		}()
+	}
+	for i := 0; i < 50; i++ {
+		<-done
+	}
+	if got := len(s.List()); got != 50 {
+		t.Fatalf("want 50 tasks, got %d", got)
+	}
+}
