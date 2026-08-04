@@ -123,6 +123,9 @@ func TestRequestErrors(t *testing.T) {
 		wantStatus int
 	}{
 		{"missing name", http.MethodPost, "/tasks", `{"status":0}`, http.StatusBadRequest},
+		{"missing status", http.MethodPost, "/tasks", `{"name":"x"}`, http.StatusBadRequest},
+		{"missing status on update", http.MethodPut, "/tasks/1", `{"name":"x"}`, http.StatusBadRequest},
+		{"id echoed back is accepted", http.MethodPut, "/tasks/1", `{"id":1,"name":"x","status":1}`, http.StatusOK},
 		{"blank name", http.MethodPost, "/tasks", `{"name":"   ","status":0}`, http.StatusBadRequest},
 		{"status out of enum", http.MethodPost, "/tasks", `{"name":"x","status":2}`, http.StatusBadRequest},
 		{"status wrong type", http.MethodPost, "/tasks", `{"name":"x","status":"done"}`, http.StatusBadRequest},

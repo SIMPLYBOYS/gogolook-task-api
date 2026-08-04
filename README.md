@@ -29,8 +29,12 @@ docker run --rm -p 8080:8080 task-api
 
 `Task`: `{"id": 1, "name": "buy milk", "status": 0}` — `status` is `0` (incomplete) or `1` (completed).
 
-Errors return `{"error": "..."}` with `400` (invalid body / missing name / status outside `[0,1]`),
-`404` (unknown id or unrouted path), or `405` (unsupported method).
+`POST` and `PUT` both require `name` and `status`; omitting either is a `400` rather than a
+silent default. An `id` in the body is accepted and ignored, so a task read back from
+`GET /tasks/{id}` can be `PUT` unchanged.
+
+Errors return `{"error": "..."}` with `400` (invalid body / missing field / status outside
+`[0,1]`), `404` (unknown id or unrouted path), or `405` (unsupported method).
 
 ```bash
 curl -X POST localhost:8080/tasks -d '{"name":"buy milk","status":0}'
@@ -63,7 +67,11 @@ curl -X DELETE localhost:8080/tasks/1 -i
 ## Notes
 
 - `PUT` is a full replacement, so both `name` and `status` are required.
-- Unknown JSON fields are rejected so typos (`"statu": 1`) fail loudly instead of silently defaulting.
+- Unknown JSON fields are rejected so typos (`"statu": 1`) fail loudly instead of silently
+  defaulting. Missing fields are rejected for the same reason — `status` is decoded through a
+  pointer because `0` is a valid state and cannot double as "absent".
+- The server sets read/write/idle timeouts; Go's defaults are none, which leaves a connection
+  that never completes its request holding a goroutine indefinitely.
 - Storage is a mutex-guarded map; data is lost on restart, per the assignment's in-memory requirement.
 - `SIGINT`/`SIGTERM` stops accepting connections and drains in-flight requests (10s cap), so
   `docker stop` or a rolling update never cuts a response mid-write.

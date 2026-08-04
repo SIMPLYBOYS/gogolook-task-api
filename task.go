@@ -160,15 +160,35 @@ func newRouter(s *Store) *http.ServeMux {
 	return mux
 }
 
+// taskInput mirrors Task with pointers so an absent key is distinguishable from a
+// zero value: status 0 is a meaningful state, so "omitted" cannot be inferred from
+// the decoded value alone. The spec says a task carries both fields, so a request
+// missing one is rejected rather than silently defaulted to incomplete.
+type taskInput struct {
+	ID     *int    `json:"id"` // accepted so a task read back from GET can be PUT unchanged; ignored
+	Name   *string `json:"name"`
+	Status *int    `json:"status"`
+}
+
 // decodeTask reads and validates the request body, writing the 400 itself when invalid.
 func decodeTask(w http.ResponseWriter, r *http.Request) (Task, bool) {
-	var t Task
+	var in taskInput
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	dec.DisallowUnknownFields()
-	if err := dec.Decode(&t); err != nil {
+	if err := dec.Decode(&in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return Task{}, false
 	}
+	if in.Name == nil {
+		writeErr(w, http.StatusBadRequest, "name is required")
+		return Task{}, false
+	}
+	if in.Status == nil {
+		writeErr(w, http.StatusBadRequest, "status is required")
+		return Task{}, false
+	}
+
+	t := Task{Name: *in.Name, Status: *in.Status}
 	if err := t.validate(); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return Task{}, false
@@ -176,7 +196,7 @@ func decodeTask(w http.ResponseWriter, r *http.Request) (Task, bool) {
 	return t, true
 }
 
-func writeJSON(w http.ResponseWriter, code int, body interface{}) {
+func writeJSON(w http.ResponseWriter, code int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(body)
