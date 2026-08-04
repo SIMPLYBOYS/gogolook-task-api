@@ -72,8 +72,10 @@ curl -X DELETE localhost:8080/tasks/1 -i
 - Unknown JSON fields are rejected so typos (`"statu": 1`) fail loudly instead of silently
   defaulting. Missing fields are rejected for the same reason — `status` is decoded through a
   pointer because `0` is a valid state and cannot double as "absent".
-- The server sets read/write/idle timeouts; Go's defaults are none, which leaves a connection
-  that never completes its request holding a goroutine indefinitely.
+- The server sets read/write/idle timeouts. Go leaves these at zero by default, and zero means
+  "no limit" rather than "no wait" — a client that opens a connection and stops halfway through
+  its request holds a goroutine for as long as it likes (Slowloris). `ReadHeaderTimeout` cuts
+  that at 5s.
 - Storage is a mutex-guarded map; data is lost on restart, per the assignment's in-memory requirement.
 - `SIGINT`/`SIGTERM` stops accepting connections and drains in-flight requests (10s cap), so
   `docker stop` or a rolling update never cuts a response mid-write.
