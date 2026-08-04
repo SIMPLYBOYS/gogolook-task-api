@@ -23,8 +23,18 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Go's zero-value Server has no timeouts, so a client that opens a connection and
+	// never finishes its request holds a goroutine indefinitely (Slowloris).
+	srv := &http.Server{
+		Handler:           newRouter(NewStore()),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
 	log.Printf("task-api listening on %s", ln.Addr())
-	if err := serve(ctx, &http.Server{Handler: newRouter(NewStore())}, ln); err != nil {
+	if err := serve(ctx, srv, ln); err != nil {
 		log.Fatal(err)
 	}
 }
