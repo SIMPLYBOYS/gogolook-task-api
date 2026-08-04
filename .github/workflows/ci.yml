@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 1.18 is the floor the assignment asks for; stable catches anything that
+        # only breaks on a newer toolchain.
+        go: ['1.18', 'stable']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+      - run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t task-api .
+      - name: run the image and exercise the API
+        run: |
+          docker run -d --name api -p 8080:8080 task-api
+          for i in $(seq 10); do curl -sf localhost:8080/healthz && break || sleep 1; done
+          curl -sf -X POST localhost:8080/tasks -d '{"name":"buy milk","status":0}'
+          curl -sf localhost:8080/tasks
+          docker stop api
+          test "$(docker inspect -f '{{.State.ExitCode}}' api)" = 0

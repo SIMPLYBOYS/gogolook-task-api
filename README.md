@@ -1,5 +1,7 @@
 # Task API
 
+[![CI](https://github.com/SIMPLYBOYS/gogolook-task-api/actions/workflows/ci.yml/badge.svg)](https://github.com/SIMPLYBOYS/gogolook-task-api/actions/workflows/ci.yml)
+
 RESTful task API in Go — standard library only, in-memory storage.
 
 ## Run
