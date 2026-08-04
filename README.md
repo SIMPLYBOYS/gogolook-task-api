@@ -38,6 +38,27 @@ curl -X PUT localhost:8080/tasks/1 -d '{"name":"buy oat milk","status":1}'
 curl -X DELETE localhost:8080/tasks/1 -i
 ```
 
+## Benchmarks
+
+`go test -run '^$' -bench . -benchmem -cpu 1,4` — numbers below from an i7-6700HQ, darwin/amd64:
+
+| Benchmark | 1 core | 4 cores |
+|---|---|---|
+| `StoreList/tasks=100` | 22 µs/op | |
+| `StoreList/tasks=1000` | 234 µs/op | |
+| `StoreList/tasks=10000` | 3.75 ms/op | |
+| `StoreListParallel` (1000 tasks) | 228 µs/op | 55 µs/op |
+| `StoreUpdateParallel` | 65 ns/op | 128 ns/op |
+
+- **Reads scale, writes do not.** Parallel reads speed up 4.1× on 4 cores, which is what
+  `RWMutex` buys over a plain `Mutex`. Concurrent updates get *slower* per op (65 → 128 ns)
+  as cores contend for the exclusive lock — that is the known ceiling of one global lock.
+  Aggregate write throughput is still ~8M ops/s, far past anything the HTTP layer will
+  deliver, so sharding the lock would be optimising the wrong thing today.
+- **`List` is the real ceiling.** It sorts on every call, so cost grows with the dataset:
+  3.75 ms at 10k tasks caps `GET /tasks` around 270 req/s on one core. The fix is an
+  ordered index (or a DB with an index on `id`), not a faster lock.
+
 ## Notes
 
 - `PUT` is a full replacement, so both `name` and `status` are required.
