@@ -89,6 +89,11 @@ func (s *Store) Delete(id int) bool {
 // buildable on Go 1.18 (method-aware patterns would need 1.22+).
 func newRouter(s *Store) *http.ServeMux {
 	mux := http.NewServeMux()
+	// Liveness only: the process is up and serving. Storage is in-process, so there is
+	// no dependency whose health could differ from the server's own.
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("ok"))
+	})
 	mux.HandleFunc("/tasks", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:

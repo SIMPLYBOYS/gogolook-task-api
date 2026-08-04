@@ -26,6 +26,13 @@ func decode(t *testing.T, rec *httptest.ResponseRecorder) Task {
 	return got
 }
 
+func TestHealthz(t *testing.T) {
+	rec := do(t, newRouter(NewStore()), http.MethodGet, "/healthz", "")
+	if rec.Code != http.StatusOK || rec.Body.String() != "ok" {
+		t.Fatalf("healthz: got %d %q", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCRUDLifecycle(t *testing.T) {
 	h := newRouter(NewStore())
 

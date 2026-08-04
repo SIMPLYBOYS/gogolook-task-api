@@ -24,6 +24,7 @@ docker run --rm -p 8080:8080 task-api
 | POST | `/tasks` | 201 | created `Task` |
 | PUT | `/tasks/{id}` | 200 | updated `Task` |
 | DELETE | `/tasks/{id}` | 204 | — |
+| GET | `/healthz` | 200 | `ok` |
 
 `Task`: `{"id": 1, "name": "buy milk", "status": 0}` — `status` is `0` (incomplete) or `1` (completed).
 
