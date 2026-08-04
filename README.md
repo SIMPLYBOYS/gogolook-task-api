@@ -42,5 +42,7 @@ curl -X DELETE localhost:8080/tasks/1 -i
 - `PUT` is a full replacement, so both `name` and `status` are required.
 - Unknown JSON fields are rejected so typos (`"statu": 1`) fail loudly instead of silently defaulting.
 - Storage is a mutex-guarded map; data is lost on restart, per the assignment's in-memory requirement.
+- `SIGINT`/`SIGTERM` stops accepting connections and drains in-flight requests (10s cap), so
+  `docker stop` or a rolling update never cuts a response mid-write.
 - `go.mod` targets Go 1.18, so routing is a `ServeMux` prefix + method switch rather than the
   method-aware patterns added in Go 1.22.
