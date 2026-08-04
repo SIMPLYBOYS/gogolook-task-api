@@ -81,3 +81,20 @@ curl -X DELETE localhost:8080/tasks/1 -i
   `docker stop` or a rolling update never cuts a response mid-write.
 - `go.mod` targets Go 1.18, so routing is a `ServeMux` prefix + method switch rather than the
   method-aware patterns added in Go 1.22.
+
+## If this had to persist
+
+In-memory is what the assignment asks for, so that is what this is. What it costs, and what
+would change if the constraint were lifted:
+
+- **The real limitation is not durability, it is that state lives in one process.** Running two
+  replicas gives you two divergent datasets, so this cannot scale horizontally as written. Losing
+  data on restart is the visible symptom; the sharding problem is the one that matters.
+- **`newRouter` takes a concrete `*Store` rather than an interface.** One implementation does not
+  justify an abstraction — the interface would exist to satisfy a pattern, not a caller. The five
+  methods on `Store` (`List`/`Get`/`Create`/`Update`/`Delete`) are already the seam, so extracting
+  it is mechanical work for the commit that actually adds a second backend.
+- **What that commit would look like:** ids move from an in-process counter to the database's
+  (sequence, UUID), `List` drops the sort in favour of `ORDER BY id`, and `Update` becomes a
+  single statement instead of a read-modify-write under a lock — the store's current mutex is
+  doing what a transaction would do.
