@@ -62,6 +62,14 @@ func (s *Store) Create(t Task) Task {
 	return t
 }
 
+func (s *Store) Get(id int) (Task, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	t, ok := s.tasks[id]
+	return t, ok
+}
+
 func (s *Store) Update(id int, t Task) (Task, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -89,6 +97,12 @@ func (s *Store) Delete(id int) bool {
 // buildable on Go 1.18 (method-aware patterns would need 1.22+).
 func newRouter(s *Store) *http.ServeMux {
 	mux := http.NewServeMux()
+	// Least specific pattern, so it only catches paths no other handler claims. Keeps
+	// unknown routes in the same JSON error shape as the rest of the API instead of the
+	// mux's plain-text "404 page not found".
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		writeErr(w, http.StatusNotFound, "not found")
+	})
 	// Liveness only: the process is up and serving. Storage is in-process, so there is
 	// no dependency whose health could differ from the server's own.
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -115,6 +129,13 @@ func newRouter(s *Store) *http.ServeMux {
 			return
 		}
 		switch r.Method {
+		case http.MethodGet:
+			t, found := s.Get(id)
+			if !found {
+				writeErr(w, http.StatusNotFound, "task not found")
+				return
+			}
+			writeJSON(w, http.StatusOK, t)
 		case http.MethodPut:
 			t, ok := decodeTask(w, r)
 			if !ok {

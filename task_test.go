@@ -33,6 +33,15 @@ func TestHealthz(t *testing.T) {
 	}
 }
 
+// A 404 from an unrouted path must still be JSON — a bare status check would pass
+// even without the catch-all, since ServeMux 404s on its own.
+func TestUnknownPathReturnsJSONError(t *testing.T) {
+	rec := do(t, newRouter(NewStore()), http.MethodGet, "/nope", "")
+	if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), `"error"`) {
+		t.Fatalf("unknown path: got %d %q", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCRUDLifecycle(t *testing.T) {
 	h := newRouter(NewStore())
 
@@ -66,6 +75,15 @@ func TestCRUDLifecycle(t *testing.T) {
 	}
 	if len(list) != 2 || list[0].ID != 1 || list[1].ID != 2 {
 		t.Fatalf("list: unexpected %+v", list)
+	}
+
+	// fetch one
+	rec = do(t, h, http.MethodGet, "/tasks/1", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get one: got %d %q", rec.Code, rec.Body.String())
+	}
+	if one := decode(t, rec); one.ID != 1 || one.Name != "buy milk" {
+		t.Fatalf("get one: unexpected task %+v", one)
 	}
 
 	// update
@@ -113,6 +131,7 @@ func TestRequestErrors(t *testing.T) {
 		{"update missing task", http.MethodPut, "/tasks/999", `{"name":"x","status":0}`, http.StatusNotFound},
 		{"update invalid body", http.MethodPut, "/tasks/1", `{"name":"","status":0}`, http.StatusBadRequest},
 		{"non-numeric id", http.MethodPut, "/tasks/abc", `{"name":"x","status":0}`, http.StatusNotFound},
+		{"get missing task", http.MethodGet, "/tasks/999", "", http.StatusNotFound},
 		{"delete missing task", http.MethodDelete, "/tasks/999", "", http.StatusNotFound},
 		{"method not allowed on collection", http.MethodPatch, "/tasks", "", http.StatusMethodNotAllowed},
 		{"method not allowed on item", http.MethodPatch, "/tasks/1", "", http.StatusMethodNotAllowed},

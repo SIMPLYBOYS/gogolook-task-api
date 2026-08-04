@@ -21,6 +21,7 @@ docker run --rm -p 8080:8080 task-api
 | Method | Path | Success | Body |
 |---|---|---|---|
 | GET | `/tasks` | 200 | `[]Task` |
+| GET | `/tasks/{id}` | 200 | one `Task` |
 | POST | `/tasks` | 201 | created `Task` |
 | PUT | `/tasks/{id}` | 200 | updated `Task` |
 | DELETE | `/tasks/{id}` | 204 | — |
@@ -29,7 +30,7 @@ docker run --rm -p 8080:8080 task-api
 `Task`: `{"id": 1, "name": "buy milk", "status": 0}` — `status` is `0` (incomplete) or `1` (completed).
 
 Errors return `{"error": "..."}` with `400` (invalid body / missing name / status outside `[0,1]`),
-`404` (unknown id), or `405` (unsupported method).
+`404` (unknown id or unrouted path), or `405` (unsupported method).
 
 ```bash
 curl -X POST localhost:8080/tasks -d '{"name":"buy milk","status":0}'
